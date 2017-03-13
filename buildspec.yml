@@ -1,0 +1,16 @@
+version: 0.1
+
+phases:
+  build:
+    commands:
+      - >-
+          sbt clean assembly;
+          exit_code=$?;
+          if [ $exit_code != 0 ]; then
+          aws sns publish --phone-number "${BUILD_FAILURE_PHONE_NUM}" --message "Dossier Lambda Project failed to build on $(TZ='America/Los_Angeles' date)";
+          fi;
+          exit $exit_code
+artifacts:
+  files:
+    - 'target/S3DropboxLambda-assembly-*.jar'
+  discard-paths: yes

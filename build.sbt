@@ -1,5 +1,7 @@
 import Dependencies._
 
+target in assembly := new File("target/")
+
 lazy val root = (project in file("."))
   .settings(
     inThisBuild(
