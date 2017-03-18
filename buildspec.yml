@@ -1,6 +1,11 @@
 version: 0.1
 
 phases:
+  pre_build:
+    commands:
+      - apk update
+      - apk add py-pip zip
+      - pip install awscli
   build:
     commands:
       - >-
@@ -10,7 +15,6 @@ phases:
           aws sns publish --phone-number "${BUILD_FAILURE_PHONE_NUM}" --message "Dossier Lambda Project failed to build on $(TZ='America/Los_Angeles' date)";
           fi;
           exit $exit_code
-artifacts:
-  files:
-    - 'target/S3DropboxLambda-assembly-*.jar'
-  discard-paths: yes
+  post_build:
+    commands:
+      - aws s3api put-object --storage-class STANDARD_IA --bucket ${LAMBDA_CODE_JAR_BUCKET} --key ${LAMBDA_CODE_JAR_KEY} --body target/S3DropboxLambda-assembly-*.jar
