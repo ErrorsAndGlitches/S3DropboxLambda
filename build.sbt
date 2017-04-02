@@ -14,5 +14,6 @@ lazy val root = (project in file("."))
     name := "S3DropboxLambda",
     libraryDependencies += awsLambdaCore,
     libraryDependencies += awsLambdaEvents,
-    libraryDependencies += scalaTest % Test
+    libraryDependencies += scalaTest % Test,
+    libraryDependencies += dropboxCore
   )

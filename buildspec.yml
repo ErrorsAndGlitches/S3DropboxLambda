@@ -17,4 +17,17 @@ phases:
           exit $exit_code
   post_build:
     commands:
-      - aws s3api put-object --storage-class STANDARD_IA --bucket ${LAMBDA_CODE_JAR_BUCKET} --key ${LAMBDA_CODE_JAR_KEY} --body target/S3DropboxLambda-assembly-*.jar
+      - aws s3api put-object
+          --storage-class STANDARD_IA
+          --bucket ${LAMBDA_CODE_JAR_BUCKET}
+          --key ${LAMBDA_CODE_JAR_KEY}
+          --body target/S3DropboxLambda-assembly-1.0.jar
+      - aws lambda update-function-configuration
+          --function-name ${LAMBDA_FUNCTION_ARN}
+          --runtime java8
+          --handler 'com.s3dropbox.lambda.LambdaMain::handleRequest'
+          --environment "Variables={EncryptedDropboxToken=${ENCRYPTED_DBX_TOKEN}}"
+      - aws lambda update-function-code
+          --function-name ${LAMBDA_FUNCTION_ARN}
+          --s3-bucket ${LAMBDA_CODE_JAR_BUCKET}
+          --s3-key ${LAMBDA_CODE_JAR_KEY}
