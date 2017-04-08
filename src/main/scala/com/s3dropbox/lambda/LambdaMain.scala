@@ -10,6 +10,7 @@ import com.amazonaws.services.s3.event.S3EventNotification.S3Entity
 import com.amazonaws.services.s3.model.S3Object
 import com.dropbox.core.DbxRequestConfig
 import com.dropbox.core.v2.DbxClientV2
+import com.dropbox.core.v2.files.WriteMode
 import com.s3dropbox.lambda.LambdaMain._
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
 import com.sun.xml.internal.messaging.saaj.util.ByteInputStream
@@ -45,6 +46,7 @@ final class LambdaMain extends RequestHandler[S3Event, Unit] {
       dbxClient
         .files()
         .uploadBuilder(s"/${zentry.filename}")
+        .withMode(WriteMode.OVERWRITE)
         .uploadAndFinish(new ByteInputStream(zentry.data, zentry.data.length))
     })
     zipFileIter.close()
