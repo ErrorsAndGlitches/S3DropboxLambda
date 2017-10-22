@@ -1,6 +1,7 @@
 package com.s3dropbox.lambda
 
 import java.io.{ByteArrayOutputStream, InputStream}
+import java.nio.file.attribute.FileTime
 import java.util.zip.{ZipEntry, ZipInputStream}
 
 import com.s3dropbox.lambda.ZipFileIterator.{END_OF_FILE, ONE_MB, PAGE_SIZE, ZipFileEntry}
@@ -32,7 +33,7 @@ class ZipFileIterator(istream: InputStream) extends Iterator[ZipFileEntry] {
       .takeWhile((bytesRead: Int) => bytesRead != END_OF_FILE)
       .foreach((bytesRead: Int) => bos.write(readBuffer, 0, bytesRead))
 
-    ZipFileEntry(zentry.getName, bos.toByteArray)
+    ZipFileEntry(zentry.getName, bos.toByteArray, zentry.getLastModifiedTime)
   }
 
   def close(): Unit = {
@@ -43,7 +44,7 @@ class ZipFileIterator(istream: InputStream) extends Iterator[ZipFileEntry] {
 
 object ZipFileIterator {
 
-  case class ZipFileEntry(filename: String, data: Array[Byte])
+  case class ZipFileEntry(filename: String, data: Array[Byte], fileTime: FileTime)
 
   private[ZipFileIterator] val ONE_MB: Int = 1024 * 1024
   private[ZipFileIterator] val END_OF_FILE: Int = -1

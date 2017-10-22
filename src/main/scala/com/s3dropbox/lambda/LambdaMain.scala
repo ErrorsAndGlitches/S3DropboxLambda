@@ -40,15 +40,21 @@ final class LambdaMain extends RequestHandler[S3Event, Unit] {
       .defaultClient()
       .getObject(s3entity.getBucket.getName, s3entity.getObject.getKey)
 
+    val dbxPdfs: DbxFileStatus = DbxFileStatus(DbxFileStatus.ROOT_FOLDER, dbxClient.files())
+
     val zipFileIter: ZipFileIterator = new ZipFileIterator(s3obj.getObjectContent)
-    zipFileIter.foreach((zentry: ZipFileEntry) => {
-      println(s"Uploading [${zentry.filename}] to Dropbox")
-      dbxClient
-        .files()
-        .uploadBuilder(s"/${zentry.filename}")
-        .withMode(WriteMode.OVERWRITE)
-        .uploadAndFinish(new ByteInputStream(zentry.data, zentry.data.length))
-    })
+    zipFileIter
+      .filter((zentry: ZipFileEntry) => {
+        val result = dbxPdfs.shouldUpdate(zentry.filename, zentry.fileTime)
+        result
+      })
+      .foreach((zentry: ZipFileEntry) => {
+        dbxClient
+          .files()
+          .uploadBuilder(s"/${zentry.filename}")
+          .withMode(WriteMode.OVERWRITE)
+          .uploadAndFinish(new ByteInputStream(zentry.data, zentry.data.length))
+      })
     zipFileIter.close()
   }
 }
