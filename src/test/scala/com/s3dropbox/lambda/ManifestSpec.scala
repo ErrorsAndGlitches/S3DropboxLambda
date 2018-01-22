@@ -108,6 +108,24 @@ class ManifestSpec extends UnitSpec {
     }
   }
 
+  describe("when a file that exists in the manifest is removed") {
+    it("should not contain the FileState anymore") {
+      assert(
+        testManifest.removeFileState(filename(2)) == Manifest(FileStates(List(
+          FileState(filename(0), digest(FileBodyBytes)),
+          FileState(filename(1), digest(FileBodyBytes)),
+          FileState(filename(3), digest(FileBodyBytes))
+        )))
+      )
+    }
+  }
+
+  describe("when a file that does not exist in the manifest is removed") {
+    it("should not change the manifest file") {
+      assert(testManifest.removeFileState(filename(4)) == testManifest)
+    }
+  }
+
   private def testManifest: Manifest = testManifest((0 to 3).toList)
 
   private def testManifest(indices: List[Int]): Manifest = Manifest(FileStates(

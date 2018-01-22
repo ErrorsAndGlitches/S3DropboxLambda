@@ -24,6 +24,13 @@ case class DossierArtifacts(zipFileIterator: ZipFileIterator) {
       .toList
   }
 
+  def containsTexFile(texFileName: String): Boolean = {
+    artifacts
+      .exists((artifact: DossierArtifact) => {
+        artifact.texFile.filename == texFileName
+      })
+  }
+
   private def isValidPair(pdfFileName: String, texFileName: String): Boolean = {
     hasSameBase(pdfFileName, texFileName) && isPdf(pdfFileName) && isTex(texFileName)
   }

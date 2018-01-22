@@ -18,6 +18,12 @@ case class Manifest(fileStates: FileStates) {
       fileStates.update(FileState(texFilename, digest(texFileBody)))
     )
   }
+
+  def removeFileState(texFilename: String): Manifest = {
+    Manifest(
+      fileStates.remove(texFilename)
+    )
+  }
 }
 
 object Manifest {
@@ -44,6 +50,12 @@ case class FileStates(fileStates: List[FileState]) {
     FileStates(
       newFileState ::
         fileStates.filter((fState: FileState) => fState.filename != newFileState.filename)
+    )
+  }
+
+  def remove(texFileName: String): FileStates = {
+    FileStates(
+      fileStates.filter((fState: FileState) => fState.filename != texFileName)
     )
   }
 

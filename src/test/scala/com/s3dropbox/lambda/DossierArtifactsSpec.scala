@@ -79,6 +79,26 @@ class DossierArtifactsSpec extends UnitSpec {
     }
   }
 
+  describe("when the dossier artifacts contains a given tex file") {
+    it("should indicate that it contains it") {
+      val texFile: String = "file_0.tex"
+      assert(
+        DossierArtifacts(mockZipFileIterator(List(texFile, texFile.replace("tex", "pdf"))))
+          .containsTexFile(texFile)
+      )
+    }
+  }
+
+  describe("when the dossier artifacts *does not contain* a given tex file") {
+    it("should indicate that it does not contain it") {
+      val texFile: String = "file_0.tex"
+      assert(
+        !DossierArtifacts(mockZipFileIterator(List(texFile, texFile.replace("tex", "pdf"))))
+          .containsTexFile("file_1.tex")
+      )
+    }
+  }
+
   def mockZipFileIterator(fileList: List[String]): ZipFileIterator = {
     val mockIterator: ZipFileIterator = mock[ZipFileIterator]
     when(mockIterator.toList)

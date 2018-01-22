@@ -39,7 +39,8 @@ final class LambdaMain extends RequestHandler[S3Event, Unit] {
     withS3ZipFile(s3entity, (zipFileIter: ZipFileIterator) => {
       val dossierArtifacts: DossierArtifacts = DossierArtifacts(zipFileIter)
 
-      val newManifest: Manifest = dossierArtifacts
+      // check for updates
+      val withUpdatesManifest: Manifest = dossierArtifacts
         .artifacts
         .filter((artifact: DossierArtifact) => {
           curManifest.requiresUpdate(artifact.texFile.filename, artifact.texFile.data)
@@ -47,6 +48,15 @@ final class LambdaMain extends RequestHandler[S3Event, Unit] {
         .foldLeft(curManifest)((mani: Manifest, artifact: DossierArtifact) => {
           uploadPdfFile(dbxFileReqs, artifact.pdfFile)
           mani.updateFileState(artifact.texFile.filename, artifact.texFile.data)
+        })
+
+      // check for deletes
+      val newManifest: Manifest = withUpdatesManifest.fileStates
+        .fileStates
+        .filter((fileState: FileState) => !dossierArtifacts.containsTexFile(fileState.filename))
+        .foldLeft(withUpdatesManifest)((mani: Manifest, fileState: FileState) => {
+          deletePdfFile(dbxFileReqs, fileState.filename)
+          mani.removeFileState(fileState.filename)
         })
 
       if (curManifest != newManifest) {
@@ -118,6 +128,13 @@ final class LambdaMain extends RequestHandler[S3Event, Unit] {
       .uploadBuilder(s"/${pdfEntry.filename}")
       .withMode(WriteMode.OVERWRITE)
       .uploadAndFinish(new ByteArrayInputStream(pdfEntry.data))
+  }
+
+  def deletePdfFile(dbxFileReqs: DbxUserFilesRequests, texFilename: String): Unit = {
+    val pdfFilename: String = "\\.tex$".r.replaceFirstIn(texFilename, ".pdf")
+    logger.info(s"Deleting PDF file from Dbx: $pdfFilename")
+    dbxFileReqs
+      .delete(s"/$pdfFilename")
   }
 
   private def uploadManifest(dbxFilesReqs: DbxUserFilesRequests, manifest: Manifest): Unit = {
