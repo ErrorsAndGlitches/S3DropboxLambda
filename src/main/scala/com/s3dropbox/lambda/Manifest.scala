@@ -29,6 +29,8 @@ case class Manifest(fileStates: FileStates) {
 object Manifest {
   private val Md5Algorithm: String = "MD5"
 
+  def apply(): Manifest = Manifest(FileStates(List[FileState]()))
+
   def digest(texFileBody: Array[Byte]): String = {
     Base64.getEncoder.encodeToString(
       MessageDigest

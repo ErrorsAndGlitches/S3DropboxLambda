@@ -3,9 +3,9 @@ version: 0.1
 phases:
   pre_build:
     commands:
-      - apk update
-      - apk add py-pip zip
-      - pip install awscli
+      - apt-get update
+      - apt-get -y install python3-pip
+      - pip3 install awscli
   build:
     commands:
       - >-
@@ -26,7 +26,7 @@ phases:
           --function-name ${LAMBDA_FUNCTION_ARN}
           --runtime java8
           --handler 'com.s3dropbox.lambda.LambdaMain::handleRequest'
-          --environment "Variables={EncryptedDropboxToken=${ENCRYPTED_DBX_TOKEN}}"
+          --environment "Variables={DBX_CREDENTIAL_S3_BUCKET=${DBX_CREDENTIAL_S3_BUCKET},DBX_CREDENTIAL_S3_KEY=${DBX_CREDENTIAL_S3_KEY},DBX_CREDENTIAL_KMS_ID=${DBX_CREDENTIAL_KMS_ID}}"
       - aws lambda update-function-code
           --function-name ${LAMBDA_FUNCTION_ARN}
           --s3-bucket ${LAMBDA_CODE_JAR_BUCKET}

@@ -8,8 +8,9 @@ import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
 import org.json4s.{Formats, JsonAST}
+import org.scalatest.funspec.AnyFunSpec
 
-class ManifestSpec extends UnitSpec {
+class ManifestSpec extends AnyFunSpec {
 
   describe("when the manifest contains the file and the data is the same") {
     it("should indicate that no update is required") {
@@ -86,11 +87,11 @@ class ManifestSpec extends UnitSpec {
 
   describe("when a manifest object is serialized") {
     it("should be serialized to the expected JSON string") {
-      implicit val formats: Formats = LambdaMain.JsonFormat
+      implicit val formats: Formats = DossierConfig.JsonFormat
       val manifest: Manifest = testManifest(List(0))
 
       assert(
-        Serialization.write(manifest).toString == write(JObject((
+        Serialization.write(manifest) == write(JObject((
           "fileStates",
           JObject((
             "fileStates",

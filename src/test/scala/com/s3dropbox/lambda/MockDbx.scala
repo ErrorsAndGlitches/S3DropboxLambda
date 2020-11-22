@@ -7,14 +7,14 @@ import com.dropbox.core.v2.files._
 import org.mockito.ArgumentMatchers
 
 import scala.collection.JavaConverters._
-import org.scalatest.mockito.MockitoSugar.mock
 import org.mockito.Mockito._
 import org.mockito.ArgumentMatchers._
+import org.scalatestplus.mockito.MockitoSugar
 
 /**
   * MockDbx is used to mock the Dbx API.
   */
-class MockDbx(fileLists: List[List[FileData]]) {
+class MockDbx(fileLists: List[List[FileData]]) extends MockitoSugar {
 
   private val dbxUserFilesRequests: DbxUserFilesRequests = mock[DbxUserFilesRequests]
 
@@ -57,7 +57,7 @@ class MockDbx(fileLists: List[List[FileData]]) {
 
   private def setupListRevisionResult(files: List[FileData]): Unit = {
     files.foreach((fileData: FileData) => {
-      when(dbxUserFilesRequests.listRevisions(ArgumentMatchers.eq(fileData.pathLower), anyLong()))
+      when(dbxUserFilesRequests.listRevisions(ArgumentMatchers.eq(fileData.pathLower)))
         .thenReturn(
           new ListRevisionsResult(
             false,

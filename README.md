@@ -27,8 +27,18 @@ The CloudFormation project is located on GitHub at [DossierCloudFormationRuby][]
 
 S3DropboxLambda is an AWS Lambda function written in scala whose purpose is to react to
 [Amazon S3 Event Notifications][]. The Lambda function expects a compressed zip file, which is decompressed and the
-packaged files are published to Dropbox. The Dropbox account is specified by setting the following environment variable:
-  * `EncryptedDropboxToken`: A [Dropbox access token][] encrypted using KMS
+packaged files are published to Dropbox. The Dropbox short term credentials are fetched and saved to a file in S3 using
+KMS encryption. The following environment variables configure this in the Lambda function:
+
+* `DBX_CREDENTIAL_S3_BUCKET`: S3 bucket to store Dropbox short term credentials
+* `DBX_CREDENTIAL_S3_KEY`: S3 key to store Dropbox short term credentials
+* `DBX_CREDENTIAL_KMS_ID`: KMS ID used to encrypted Dropbox credentials in S3
+
+You can bootstrap the credentials by fetching credentials using (see repo README for usage):
+
+* https://github.com/dropbox/dropbox-sdk-java/blob/master/examples/authorize/src/main/java/com/dropbox/core/examples/authorize/Main.java
+
+And then uploading the credentials to the respective S3 location.
 
 [Amazon S3 Event Notifications]: http://docs.aws.amazon.com/AmazonS3/latest/dev/NotificationHowTo.html
 [Dropbox access token]: https://www.dropbox.com/developers/reference/oauth-guide
@@ -47,8 +57,8 @@ The only requirements to build the project are scala and SBT. Install those usin
 build the project, run the tests, and build the fat jar:
 
 ```
-  sbt assembly
-  # this generates the fat jar: target/S3DropboxLambda-assembly-1.0.jar
+sbt assembly
+# this generates the fat jar: target/S3DropboxLambda-assembly-1.0.jar
 ```
 
 ## Building with CodeBuild
@@ -65,8 +75,10 @@ see the [buildspec.yml][] file.
 | `LAMBDA_CODE_JAR_BUCKET`  | S3 Bucket to publish the fat JAR to                                                      |
 | `LAMBDA_CODE_JAR_KEY`     | S3 Object key of the fat Jar                                                             |
 | `LAMBDA_FUNCTION_ARN`     | Used by the `buildspec.yml` to update the given Lambda function's configuration and code |
-| `ENCRYPTED_DBX_TOKEN`     | A Dropbox access token encrypted using KMS used to connect to a specific user's account  |
 | `BUILD_FAILURE_PHONE_NUM` | In the event of a build failure, the phone number to send an alert SMS to                |
+| `DBX_CREDENTIAL_S3_BUCKET`| S3 bucket to store Dropbox short term credentials |
+| `DBX_CREDENTIAL_S3_KEY`   | S3 key to store Dropbox short term credentials |
+| `DBX_CREDENTIAL_KMS_ID`   | KMS ID used to encrypted credentials in S3 |
 
 [CodeBuild]: https://aws.amazon.com/codebuild/
 [buildspec.yml]: https://github.com/ErrorsAndGlitches/S3DropboxLambda/blob/master/buildspec.yml

@@ -4,11 +4,12 @@ import java.io.{File, FileInputStream, FileOutputStream}
 import java.util.zip.{ZipEntry, ZipOutputStream}
 
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
+import org.scalatest.funspec.AnyFunSpec
 
 /**
   * ZipFileIteratorSpec
   */
-class ZipFileIteratorSpec extends UnitSpec {
+class ZipFileIteratorSpec extends AnyFunSpec with ResourceSpec {
 
   describe("When given a valid zip file with more than one compressed file") {
     it("should iterate over the compressed files and provide their file name and contents") {
@@ -31,14 +32,12 @@ class ZipFileIteratorSpec extends UnitSpec {
     }
   }
 
-  describe("when given a zip file containing 26 PDF files") {
-    it("should decompress the 26 PDF files") {
-      val zipFileIter: ZipFileIterator = new ZipFileIterator(
-        classOf[ZipFileIteratorSpec].getResourceAsStream("/test_files.zip")
-      )
+  describe("when given a zip file containing 10 PDF files and 10 LaTeX files") {
+    it("should decompress the 20 files") {
+      val zipFileIter: ZipFileIterator = new ZipFileIterator(resourceFileStream("test_files.zip"))
 
       assert(
-        zipFileIter.foldLeft(0)((numItems: Int, entry: ZipFileEntry) => numItems + 1) == 10
+        zipFileIter.foldLeft(0)((numItems: Int, _: ZipFileEntry) => numItems + 1) == 20
       )
     }
   }

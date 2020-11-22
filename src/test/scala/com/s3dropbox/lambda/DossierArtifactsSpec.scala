@@ -3,10 +3,12 @@ package com.s3dropbox.lambda
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
 import com.s3dropbox.lambda.DossierArtifactsSpec.EmptyByteArray
 import org.mockito.Mockito._
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.util.Random.shuffle
 
-class DossierArtifactsSpec extends UnitSpec {
+class DossierArtifactsSpec extends AnyFunSpec with MockitoSugar {
 
   describe("when given a list of LaTeX and PDF files") {
     it("should pairs the LaTeX and PDF files") {
@@ -96,6 +98,14 @@ class DossierArtifactsSpec extends UnitSpec {
         !DossierArtifacts(mockZipFileIterator(List(texFile, texFile.replace("tex", "pdf"))))
           .containsTexFile("file_1.tex")
       )
+    }
+  }
+
+  describe("when a dossier artifact is closed") {
+    it("should close the underlying iterator") {
+      val mockIterator = mock[ZipFileIterator]
+      DossierArtifacts(mockIterator).close()
+      verify(mockIterator).close()
     }
   }
 

@@ -1,11 +1,12 @@
 package com.s3dropbox.lambda
 
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
+import com.typesafe.scalalogging.LazyLogging
 
 /**
   * DossierArtifacts pairs the LaTeX and PDF artifacts.
   */
-case class DossierArtifacts(zipFileIterator: ZipFileIterator) {
+case class DossierArtifacts(zipFileIterator: ZipFileIterator) extends LazyLogging {
 
   lazy val artifacts: List[DossierArtifact] = {
     zipFileIterator
@@ -29,6 +30,14 @@ case class DossierArtifacts(zipFileIterator: ZipFileIterator) {
       .exists((artifact: DossierArtifact) => {
         artifact.texFile.filename == texFileName
       })
+  }
+
+  def close(): Unit = {
+    try {
+      zipFileIterator.close()
+    } catch {
+      case e: Exception => logger.error("Unable to close zip file iterator", e)
+    }
   }
 
   private def isValidPair(pdfFileName: String, texFileName: String): Boolean = {
