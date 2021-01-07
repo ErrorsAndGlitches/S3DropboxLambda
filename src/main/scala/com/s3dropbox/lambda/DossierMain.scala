@@ -10,41 +10,16 @@ import org.springframework.context.annotation.{AnnotationConfigApplicationContex
 case class DossierMain(var s3: AmazonS3, var dbxFiles: DbxFiles, var curManifest: Manifest) {
 
   def update(dossierBucket: String, dossierKey: String): Unit = {
-    val dossierArtifacts: DossierArtifacts = DossierArtifacts(new ZipFileIterator(
+    val dossierArtifacts: DossierArtifact = DossierArtifact(new ZipFileIterator(
       s3.getObject(dossierBucket, dossierKey).getObjectContent
     ))
     try {
-      val newManifest: Manifest = (manifestFromPdfUpdates _ andThen (manifestFromDeletes(_, dossierArtifacts))) (dossierArtifacts)
-      if (curManifest != newManifest) {
-        dbxFiles.uploadManifest(newManifest)
-      }
-
+      dbxFiles.deletePdfs(dossierArtifacts.filenamesToRemove(curManifest))
+      dbxFiles.uploadPdfs(dossierArtifacts.zipFileEntriesToUpdate(curManifest))
+      dbxFiles.uploadManifest(dossierArtifacts.dossierZipFileContents.manifest)
     } finally {
       dossierArtifacts.close()
     }
-  }
-
-  private def manifestFromPdfUpdates(dossierArtifacts: DossierArtifacts): Manifest = {
-    dossierArtifacts
-      .artifacts
-      .filter((artifact: DossierArtifact) => {
-        curManifest.requiresUpdate(artifact.texFile.filename, artifact.texFile.data)
-      })
-      .foldLeft(curManifest)((mani: Manifest, artifact: DossierArtifact) => {
-        dbxFiles.uploadPdf(artifact.pdfFile)
-        mani.updateFileState(artifact.texFile.filename, artifact.texFile.data)
-      })
-  }
-
-  private def manifestFromDeletes(updateManifest: Manifest, dossierArtifacts: DossierArtifacts): Manifest = {
-    updateManifest
-      .fileStates
-      .fileStates
-      .filter((fileState: FileState) => !dossierArtifacts.containsTexFile(fileState.filename))
-      .foldLeft(updateManifest)((mani: Manifest, fileState: FileState) => {
-        dbxFiles.deletePdf(fileState.filename)
-        mani.removeFileState(fileState.filename)
-      })
   }
 }
 

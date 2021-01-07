@@ -2,9 +2,10 @@ package com.s3dropbox.lambda
 
 import java.io.{File, FileInputStream, FileOutputStream}
 import java.util.zip.{ZipEntry, ZipOutputStream}
-
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
 import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.must.Matchers.be
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 
 /**
   * ZipFileIteratorSpec
@@ -32,13 +33,13 @@ class ZipFileIteratorSpec extends AnyFunSpec with ResourceSpec {
     }
   }
 
-  describe("when given a zip file containing 10 PDF files and 10 LaTeX files") {
-    it("should decompress the 20 files") {
-      val zipFileIter: ZipFileIterator = new ZipFileIterator(resourceFileStream("test_files.zip"))
+  describe("when given a zip file containing PDF files and a manifest file") {
+    it("should decompress the files") {
+      val filenames = new ZipFileIterator(resourceFileStream("test-files.zip"))
+        .map(entry => entry.filename)
 
-      assert(
-        zipFileIter.foldLeft(0)((numItems: Int, _: ZipFileEntry) => numItems + 1) == 20
-      )
+      filenames.size shouldBe 8
+      filenames.contains(".manifest") should be
     }
   }
 

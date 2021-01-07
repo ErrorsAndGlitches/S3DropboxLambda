@@ -38,7 +38,11 @@ You can bootstrap the credentials by fetching credentials using (see repo README
 
 * https://github.com/dropbox/dropbox-sdk-java/blob/master/examples/authorize/src/main/java/com/dropbox/core/examples/authorize/Main.java
 
-And then uploading the credentials to the respective S3 location.
+And then uploading the credentials to the respective S3 location. You can run the application locally via:
+
+```
+sbt run-dossier --help
+```
 
 [Amazon S3 Event Notifications]: http://docs.aws.amazon.com/AmazonS3/latest/dev/NotificationHowTo.html
 [Dropbox access token]: https://www.dropbox.com/developers/reference/oauth-guide
@@ -83,3 +87,12 @@ see the [buildspec.yml][] file.
 [CodeBuild]: https://aws.amazon.com/codebuild/
 [buildspec.yml]: https://github.com/ErrorsAndGlitches/S3DropboxLambda/blob/master/buildspec.yml
 [1science/sbt]: https://hub.docker.com/r/1science/sbt/
+
+## Running Tests
+
+```
+# run all tests
+sbt test
+# run single test
+sbt "testOnly com.s3dropbox.lambda.ManifestSpec"
+```

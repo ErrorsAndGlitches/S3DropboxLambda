@@ -1,77 +1,27 @@
 package com.s3dropbox.lambda
 
-import java.security.MessageDigest
-import java.util.Base64
-import com.s3dropbox.lambda.Manifest.digest
+import org.json4s.{Formats, NoTypeHints}
+import org.json4s.jackson.JsonMethods
+
+import java.io.ByteArrayInputStream
 
 /**
   * Manifest contains information about the target Dropbox App folder.
   */
-case class Manifest(fileStates: FileStates) {
+case class Manifest(fileStates: List[FileState]) {
+  def filenamesToRemove(oldManifest: Manifest): List[String] = oldManifest.filenames.diff(filenames)
 
-  def requiresUpdate(texFilename: String, texFileBody: Array[Byte]): Boolean = {
-    fileStates.requiresUpdate(FileState(texFilename, digest(texFileBody)))
-  }
+  def filesToUpdate(oldManifest: Manifest): List[FileState] = fileStates.diff(oldManifest.fileStates)
 
-  def updateFileState(texFilename: String, texFileBody: Array[Byte]): Manifest = {
-    Manifest(
-      fileStates.update(FileState(texFilename, digest(texFileBody)))
-    )
-  }
-
-  def removeFileState(texFilename: String): Manifest = {
-    Manifest(
-      fileStates.remove(texFilename)
-    )
-  }
+  private def filenames: List[String] = fileStates.map(_.filename)
 }
 
 object Manifest {
-  private val Md5Algorithm: String = "MD5"
+  implicit val formats: Formats = org.json4s.DefaultFormats + NoTypeHints
 
-  def apply(): Manifest = Manifest(FileStates(List[FileState]()))
+  def apply(): Manifest = Manifest(List[FileState]())
 
-  def digest(texFileBody: Array[Byte]): String = {
-    Base64.getEncoder.encodeToString(
-      MessageDigest
-        .getInstance(Manifest.Md5Algorithm)
-        .digest(texFileBody)
-    )
-  }
-}
-
-case class FileStates(fileStates: List[FileState]) {
-
-  def requiresUpdate(newFileState: FileState): Boolean = {
-    fileStates
-      .find((state: FileState) => state.filename == newFileState.filename)
-      .forall((state: FileState) => state.md5sum != newFileState.md5sum)
-  }
-
-  def update(newFileState: FileState): FileStates = {
-    FileStates(
-      newFileState ::
-        fileStates.filter((fState: FileState) => fState.filename != newFileState.filename)
-    )
-  }
-
-  def remove(texFileName: String): FileStates = {
-    FileStates(
-      fileStates.filter((fState: FileState) => fState.filename != texFileName)
-    )
-  }
-
-  override def equals(o: scala.Any): Boolean = {
-    if (!o.isInstanceOf[FileStates]) {
-      false
-    }
-    else {
-      val otherFileStates: FileStates = o.asInstanceOf[FileStates]
-      otherFileStates.sortedFileStates == sortedFileStates
-    }
-  }
-
-  private def sortedFileStates: List[FileState] = fileStates.sortBy(_.filename)
+  def apply(data: Array[Byte]): Manifest = JsonMethods.parse(new ByteArrayInputStream(data)).extract[Manifest]
 }
 
 case class FileState(filename: String, md5sum: String)

@@ -1,78 +1,57 @@
 package com.s3dropbox.lambda
 
-import java.nio.charset.StandardCharsets
-
-import com.s3dropbox.lambda.Manifest.digest
-import com.s3dropbox.lambda.ManifestSpec.FileBodyBytes
 import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization.write
 import org.json4s.{Formats, JsonAST}
 import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.must.Matchers.be
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 
 class ManifestSpec extends AnyFunSpec {
 
-  describe("when the manifest contains the file and the data is the same") {
-    it("should indicate that no update is required") {
-      assert(
-        !testManifest.requiresUpdate(filename(1), FileBodyBytes)
-      )
+  describe("when the new manifest is identical to the current manifest") {
+    it("should have no updates and no files to remove") {
+      val newManifest = testManifest
+      val oldManifest = testManifest
+
+      newManifest.filesToUpdate(oldManifest).isEmpty should be
+      newManifest.filenamesToRemove(oldManifest).isEmpty should be
     }
   }
 
-  describe("when the manifest contains the file and the data is not the same") {
-    it("should indicate that an update is required") {
-      assert(
-        testManifest.requiresUpdate(filename(1), "different file body".getBytes(StandardCharsets.UTF_8))
-      )
+  describe("when the new manifest has one new file compared to the old manifest") {
+    it("should have one update and no files to remove") {
+      val newManifest = testManifest((0 to 3).toList)
+      val oldManifest = testManifest((0 to 2).toList)
+
+      newManifest.filesToUpdate(oldManifest) shouldBe List(FileState("file3", "md5sum-file3"))
+      newManifest.filenamesToRemove(oldManifest).isEmpty should be
     }
   }
 
-  describe("when the manifest does not contain the file") {
-    it("should indicate that an update is required") {
-      assert(
-        testManifest.requiresUpdate(filename(9), FileBodyBytes)
-      )
+  describe("when the new manifest has one less file compared to the old manifest") {
+    it("should have no updates and one file to remove") {
+      val newManifest = testManifest((0 to 2).toList)
+      val oldManifest = testManifest((0 to 3).toList)
+
+      newManifest.filesToUpdate(oldManifest).isEmpty should be
+      newManifest.filenamesToRemove(oldManifest) shouldBe List("file3")
     }
   }
 
-  describe("when a new file is added to an empty manifest") {
-    it("should return a new manifest with the file") {
-      assert(
-        Manifest(FileStates(List())).updateFileState(filename(9), FileBodyBytes) == testManifest(List(9))
+  describe("when the new manifest has the same files as the old manifest, but with different contents") {
+    it("should have updates no files to remove") {
+      val newManifest = Manifest((0 to 3).map(index => FileState(filename(index), s"new-md5sum-file$index")).toList)
+      val oldManifest = testManifest((0 to 3).toList)
+
+      newManifest.filesToUpdate(oldManifest) shouldBe List(
+        FileState("file0", "new-md5sum-file0"),
+        FileState("file1", "new-md5sum-file1"),
+        FileState("file2", "new-md5sum-file2"),
+        FileState("file3", "new-md5sum-file3")
       )
-    }
-  }
-
-  describe("when the manifest is updated with a file that doesn't already exist") {
-    it("should return a new manifest with the file") {
-      assert(
-        testManifest.updateFileState(filename(9), FileBodyBytes) == testManifest(List(0, 1, 2, 3, 9))
-      )
-    }
-  }
-
-  describe("when the manifest is updated with a file that already exists") {
-    it("should return a new manifest with the file") {
-      val newBodyBytes: Array[Byte] = "new file contents".getBytes(StandardCharsets.UTF_8)
-
-      assert(
-        testManifest.updateFileState(filename(2), newBodyBytes) == Manifest(FileStates(List(
-          FileState(filename(0), digest(FileBodyBytes)),
-          FileState(filename(1), digest(FileBodyBytes)),
-          FileState(filename(2), digest(newBodyBytes)),
-          FileState(filename(3), digest(FileBodyBytes)),
-        )))
-      )
-    }
-  }
-
-  describe("when two empty manifest objects are compared") {
-    it("should indicate that they are equal") {
-      val manifestOne: Manifest = Manifest(FileStates(List[FileState]()))
-      val manifestTwo: Manifest = Manifest(FileStates(List[FileState]()))
-
-      assert(manifestOne == manifestTwo)
+      newManifest.filenamesToRemove(oldManifest).isEmpty should be
     }
   }
 
@@ -93,52 +72,23 @@ class ManifestSpec extends AnyFunSpec {
       assert(
         Serialization.write(manifest) == write(JObject((
           "fileStates",
-          JObject((
-            "fileStates",
-            JsonAST.JArray(List(
-                JObject(List(
-                    ("filename", JString("file0")),
-                    ("md5sum", JString("xj7O6ohpJ/eKKU0J6t/WTA=="))
-                  )
-                )
-              )
-            )
+          JsonAST.JArray(List(
+            JObject(List(
+              ("filename", JString("file0")),
+              ("md5sum", JString("md5sum-file0"))
+            ))
           ))
         )))
       )
     }
   }
 
-  describe("when a file that exists in the manifest is removed") {
-    it("should not contain the FileState anymore") {
-      assert(
-        testManifest.removeFileState(filename(2)) == Manifest(FileStates(List(
-          FileState(filename(0), digest(FileBodyBytes)),
-          FileState(filename(1), digest(FileBodyBytes)),
-          FileState(filename(3), digest(FileBodyBytes))
-        )))
-      )
-    }
-  }
-
-  describe("when a file that does not exist in the manifest is removed") {
-    it("should not change the manifest file") {
-      assert(testManifest.removeFileState(filename(4)) == testManifest)
-    }
-  }
-
   private def testManifest: Manifest = testManifest((0 to 3).toList)
 
-  private def testManifest(indices: List[Int]): Manifest = Manifest(FileStates(
-    indices
-      .map((index: Int) => filename(index))
-      .map((filename: String) => FileState(filename, ManifestSpec.MD5Sum))
-  ))
+  private def testManifest(indices: List[Int]): Manifest = Manifest(indices
+    .map((index: Int) => filename(index))
+    .map((filename: String) => FileState(filename, s"md5sum-$filename"))
+  )
 
   private def filename(index: Int): String = s"file$index"
-}
-
-private object ManifestSpec {
-  val FileBodyBytes: Array[Byte] = "file body".getBytes(StandardCharsets.UTF_8)
-  val MD5Sum: String = digest(FileBodyBytes)
 }

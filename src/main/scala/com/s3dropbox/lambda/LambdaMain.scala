@@ -8,9 +8,8 @@ import com.typesafe.scalalogging.LazyLogging
 
 /**
  * LambdaMain is the AWS Lambda entry point. This AWS Lambda function reacts off S3 notifications. The file is expected
- * to be a zip file, which is unpacked and then the individual files are published to Dropbox.
- *
- * One assumption of this project is that all the PDFs and thus all the LaTeX files are unique.
+ * to be a zip file, which contains a hierarchy of PDFs and a manifest file. The manifest file is used to compare
+ * what is in Dropbox and what is published as part of the payload.
  */
 class LambdaMain extends RequestHandler[S3Event, Unit] with LazyLogging {
   override def handleRequest(event: S3Event, context: Context): Unit = {

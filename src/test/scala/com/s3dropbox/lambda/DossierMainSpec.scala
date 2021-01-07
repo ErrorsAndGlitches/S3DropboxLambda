@@ -5,7 +5,7 @@ import com.amazonaws.services.s3.model.{S3Object, S3ObjectInputStream}
 import com.s3dropbox.lambda.DossierMainSpec.{TestDossierBucket, TestDossierKey}
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
 import org.mockito.ArgumentMatchers.{any, anyString}
-import org.mockito.Mockito.{verify, when}
+import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
 import org.mockito.stubbing.Answer
 import org.scalatest.funspec.AnyFunSpec
@@ -22,15 +22,18 @@ class DossierMainSpec extends AnyFunSpec with MockitoSugar with Matchers with Re
       val deletedFiles: ArrayBuffer[String] = ArrayBuffer[String]()
       var finalManifest: Manifest = null
 
-      val dbxFiles = mockDbxFiles
-      when(dbxFiles.uploadPdf(any())).thenAnswer(new Answer[Unit] {
+      val dbxFiles = mock[DbxFiles]
+      when(dbxFiles.uploadPdfs(any())).thenAnswer(new Answer[Unit] {
         override def answer(invocation: InvocationOnMock): Unit = {
-          uploadedFiles.append(invocation.getArgument(0, classOf[ZipFileEntry]).filename)
+          invocation
+            .getArgument(0, classOf[List[ZipFileEntry]])
+            .map(_.filename)
+            .foreach(uploadedFiles.append(_))
         }
       })
-      when(dbxFiles.deletePdf(any())).thenAnswer(new Answer[Unit] {
+      when(dbxFiles.deletePdfs(any())).thenAnswer(new Answer[Unit] {
         override def answer(invocation: InvocationOnMock): Unit = {
-          deletedFiles.append(invocation.getArgument(0, classOf[String]))
+          deletedFiles ++= invocation.getArgument(0, classOf[List[String]])
         }
       })
       when(dbxFiles.uploadManifest(any())).thenAnswer(new Answer[Unit] {
@@ -39,32 +42,27 @@ class DossierMainSpec extends AnyFunSpec with MockitoSugar with Matchers with Re
         }
       })
 
-      DossierMain(mockS3, dbxFiles, mockManifest).update(TestDossierBucket, TestDossierKey)
+      DossierMain(mockS3, dbxFiles, currentManifest).update(TestDossierBucket, TestDossierKey)
 
       uploadedFiles shouldBe Array(
-        "file_1.pdf", "file_2.pdf", "file_3.pdf", "file_4.pdf", "file_5.pdf", "file_6.pdf",
-        "file_7.pdf", "file_8.pdf", "file_9.pdf"
+        "file-1.pdf",
+        "folder-2/file-2.pdf",
+        "folder-3/sub-folder-3/file-3.pdf"
       )
-      deletedFiles shouldBe Array("file_should_delete.tex")
-      finalManifest shouldBe Manifest(FileStates(List(
-        FileState("file_9.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_8.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_7.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_6.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_5.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_4.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_3.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_2.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_1.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="),
-        FileState("file_0.tex", "1B2M2Y8AsgTpgAmY7PhCfg==")
-      )))
+      deletedFiles shouldBe Array("folder-4/sub-folder-4/file-4.pdf")
+      finalManifest shouldBe Manifest(List(
+        FileState("file-0.pdf", "file-0-md5sum"),
+        FileState("file-1.pdf", "file-1-md5sum"),
+        FileState("folder-2/file-2.pdf", "file-2-md5sum"),
+        FileState("folder-3/sub-folder-3/file-3.pdf", "file-3-md5sum")
+      ))
     }
   }
 
   private def mockS3: AmazonS3 = {
     val s3Object: S3Object = mock[S3Object]
     when(s3Object.getObjectContent).thenReturn(new S3ObjectInputStream(
-      resourceFileStream("test_files.zip"),
+      resourceFileStream("test-files.zip"),
       null
     ))
     val s3: AmazonS3 = mock[AmazonS3]
@@ -72,16 +70,12 @@ class DossierMainSpec extends AnyFunSpec with MockitoSugar with Matchers with Re
     s3
   }
 
-  private def mockDbxFiles: DbxFiles = {
-    val dbxFiles: DbxFiles = mock[DbxFiles]
-    dbxFiles
-  }
-
-  private def mockManifest: Manifest = Manifest(FileStates(List(
-    FileState("file_0.tex", "1B2M2Y8AsgTpgAmY7PhCfg=="), // no update
-    FileState("file_1.tex", "000000000000000000000000"), // should update
-    FileState("file_should_delete.tex", "000000000000000000000000"),
-  )))
+  private def currentManifest: Manifest = Manifest(List(
+    FileState("file-0.pdf", "file-0-md5sum"),
+    FileState("file-1.pdf", "file-1-old-md5sum"),
+    FileState("folder-2/file-2.pdf", "file-2-old-md5sum"),
+    FileState("folder-4/sub-folder-4/file-4.pdf", "file-4-md5sum")
+  ))
 }
 
 object DossierMainSpec {
