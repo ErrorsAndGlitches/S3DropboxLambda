@@ -19,6 +19,7 @@ case class DossierMain(var s3: AmazonS3, var dbxFiles: DbxFiles, var curManifest
       dbxFiles.uploadManifest(dossierArtifacts.dossierZipFileContents.manifest)
     } finally {
       dossierArtifacts.close()
+      dbxFiles.shutdown()
     }
   }
 }

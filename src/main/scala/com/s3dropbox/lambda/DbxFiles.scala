@@ -1,19 +1,20 @@
 package com.s3dropbox.lambda
 
-import java.io.{ByteArrayInputStream, File}
-import java.nio.charset.StandardCharsets
 import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.{ListFolderResult, Metadata, WriteMode}
+import com.s3dropbox.lambda.DbxFiles._
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
 import com.typesafe.scalalogging.LazyLogging
-import org.json4s.{Formats, NoTypeHints}
 import org.json4s.jackson.Serialization
+import org.json4s.{Formats, NoTypeHints}
 import org.springframework.beans.factory.annotation.Autowired
-import DbxFiles._
-import com.dropbox.core.v2.sharing.ListFilesResult
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Component
 
+import java.io.{ByteArrayInputStream, File}
+import java.nio.charset.StandardCharsets
+import java.time.Duration
+import java.util.concurrent.{ExecutorService, Future, ThreadPoolExecutor, TimeUnit}
 import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.collection.mutable
 
@@ -22,12 +23,19 @@ import scala.collection.mutable
  */
 @Component
 @Lazy
-case class DbxFiles(@Autowired var dbx: DbxClientV2) extends LazyLogging {
+case class DbxFiles(@Autowired var dbx: DbxClientV2, @Autowired var executor: ThreadPoolExecutor) extends LazyLogging {
   implicit val formats: Formats = JsonFormat
 
-  def uploadPdfs(pdfEntries: List[ZipFileEntry]): Unit = pdfEntries.foreach(updatePdf)
+  def uploadPdfs(pdfEntries: List[ZipFileEntry]): Unit = {
+    pdfEntries
+      .map(updatePdf)
+      .foreach(_.get(UploadWaitTime.getSeconds, TimeUnit.SECONDS))
+  }
 
-  def deletePdfs(pdfFilenames: List[String]): Unit = pdfFilenames.foreach(deletePdf)
+  def deletePdfs(pdfFilenames: List[String]): Unit = {
+    // deletion must be done serially due to deletion of folders logic
+    pdfFilenames.foreach(deletePdf)
+  }
 
   def uploadManifest(manifest: Manifest): Unit = {
     logger.info(s"Uploading manifest to Dbx: ${Serialization.write(manifest)}")
@@ -39,12 +47,17 @@ case class DbxFiles(@Autowired var dbx: DbxClientV2) extends LazyLogging {
       ))
   }
 
-  private def updatePdf(pdfEntry: ZipFileEntry): Unit = {
-    logger.info(s"Uploading PDF file to Dbx: ${pdfEntry.filename}")
-    dbx.files()
-      .uploadBuilder(s"/${pdfEntry.filename}")
-      .withMode(WriteMode.OVERWRITE)
-      .uploadAndFinish(new ByteArrayInputStream(pdfEntry.data))
+  def shutdown(): Unit = executor.shutdown()
+
+  private def updatePdf(pdfEntry: ZipFileEntry): Future[Unit] = {
+    executor.submit(() => {
+      logger.info(s"Uploading PDF file to Dbx: ${pdfEntry.filename}")
+      dbx.files()
+        .uploadBuilder(s"/${pdfEntry.filename}")
+        .withMode(WriteMode.OVERWRITE)
+        .uploadAndFinish(new ByteArrayInputStream(pdfEntry.data))
+      logger.info(s"Finished uploading PDF file to Dbx: ${pdfEntry.filename}. Number active tasks: ${executor.getActiveCount}")
+    })
   }
 
   private def deletePdf(pdfFilename: String): Unit = {
@@ -84,4 +97,5 @@ object DbxFiles {
   val JsonFormat: Formats = org.json4s.DefaultFormats + NoTypeHints
   val ManifestFileName: String = "/.manifest"
   val RootFolder: String = "/"
+  val UploadWaitTime: Duration = Duration.ofMinutes(10L)
 }

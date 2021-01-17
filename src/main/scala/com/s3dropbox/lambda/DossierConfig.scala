@@ -1,9 +1,5 @@
 package com.s3dropbox.lambda
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-import java.nio.charset.StandardCharsets
-import java.util.Locale
-
 import com.amazonaws.services.s3.model.{ObjectMetadata, PutObjectRequest, SSEAwsKeyManagementParams}
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import com.dropbox.core.DbxRequestConfig
@@ -12,10 +8,15 @@ import com.dropbox.core.v2.DbxClientV2
 import com.dropbox.core.v2.files.DownloadErrorException
 import com.s3dropbox.lambda.DbxFiles.ManifestFileName
 import com.typesafe.scalalogging.LazyLogging
-import javax.inject.Named
 import org.json4s.jackson.JsonMethods
 import org.json4s.{Formats, NoTypeHints}
 import org.springframework.context.annotation.{Bean, Configuration, Lazy}
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.nio.charset.StandardCharsets
+import java.util.Locale
+import java.util.concurrent.{SynchronousQueue, ThreadPoolExecutor, TimeUnit}
+import javax.inject.Named
 
 /**
  * Contains Spring beans.
@@ -57,6 +58,13 @@ class DossierConfig extends LazyLogging {
 
   @Bean
   def dbxClient(dbxCred: DbxCredential): DbxClientV2 = new DbxClientV2(dbxRequestConfig, dbxCred)
+
+  @Bean
+  def dbxExecutorService(): ThreadPoolExecutor = new ThreadPoolExecutor(
+    poolSize, poolSize, Long.MaxValue, TimeUnit.HOURS, new SynchronousQueue[Runnable](), new ThreadPoolExecutor.CallerRunsPolicy()
+  )
+
+  private def poolSize: Int = 20
 
   @Bean
   def dbxRequestConfig: DbxRequestConfig = DbxRequestConfig

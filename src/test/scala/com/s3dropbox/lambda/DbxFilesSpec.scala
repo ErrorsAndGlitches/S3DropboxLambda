@@ -1,7 +1,7 @@
 package com.s3dropbox.lambda
 
 import com.dropbox.core.v2.DbxClientV2
-import com.dropbox.core.v2.files.{DbxUserFilesRequests, FileMetadata, ListFolderResult, Metadata, UploadBuilder, WriteMode}
+import com.dropbox.core.v2.files._
 import com.s3dropbox.lambda.DbxFilesSpec.{DbxFileMetadata, PdfFileContents, PdfFileName, PdfZipFileEntry}
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
 import org.mockito.ArgumentMatchers.any
@@ -12,8 +12,8 @@ import org.scalatest.funspec.AnyFunSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 
-import collection.JavaConverters._
 import java.io.InputStream
+import java.util.concurrent.{SynchronousQueue, ThreadPoolExecutor, TimeUnit}
 import java.util.{Collections, Date}
 
 class DbxFilesSpec extends AnyFunSpec with MockitoSugar with Matchers {
@@ -33,7 +33,7 @@ class DbxFilesSpec extends AnyFunSpec with MockitoSugar with Matchers {
       val dbxFiles: DbxUserFilesRequests = mock[DbxUserFilesRequests]
       when(dbxFiles.uploadBuilder("/clutch-doc.pdf")).thenReturn(uploadBuilder)
 
-      DbxFiles(mockDbxClient(dbxFiles)).uploadPdfs(List(PdfZipFileEntry))
+      DbxFiles(mockDbxClient(dbxFiles), executorService).uploadPdfs(List(PdfZipFileEntry))
       verify(uploadBuilder).withMode(WriteMode.OVERWRITE)
     }
   }
@@ -41,7 +41,7 @@ class DbxFilesSpec extends AnyFunSpec with MockitoSugar with Matchers {
   describe("when a delete request is made") {
     it("should delete the file") {
       val dbxFiles: DbxUserFilesRequests = mock[DbxUserFilesRequests]
-      DbxFiles(mockDbxClient(dbxFiles)).deletePdfs(List(PdfFileName))
+      DbxFiles(mockDbxClient(dbxFiles), executorService).deletePdfs(List(PdfFileName))
       verify(dbxFiles).deleteV2("/clutch-doc.pdf")
     }
   }
@@ -50,7 +50,7 @@ class DbxFilesSpec extends AnyFunSpec with MockitoSugar with Matchers {
     it("should delete the file and delete the folder when it is empty") {
       val dbxFiles: DbxUserFilesRequests = mock[DbxUserFilesRequests]
       when(dbxFiles.listFolder("/folder")).thenReturn(new ListFolderResult(Collections.emptyList(), "cursor", false))
-      DbxFiles(mockDbxClient(dbxFiles)).deletePdfs(List(s"folder/$PdfFileName"))
+      DbxFiles(mockDbxClient(dbxFiles), executorService).deletePdfs(List(s"folder/$PdfFileName"))
       verify(dbxFiles).deleteV2("/folder/clutch-doc.pdf")
       verify(dbxFiles).deleteV2("/folder")
     }
@@ -63,7 +63,7 @@ class DbxFilesSpec extends AnyFunSpec with MockitoSugar with Matchers {
         new ListFolderResult(Collections.emptyList(), "cursor", true),
         new ListFolderResult(Collections.singletonList(new Metadata("/folder/other-clutch-doc.pdf")), "cursor", false)
       )
-      DbxFiles(mockDbxClient(dbxFiles)).deletePdfs(List(s"folder/$PdfFileName"))
+      DbxFiles(mockDbxClient(dbxFiles), executorService).deletePdfs(List(s"folder/$PdfFileName"))
       verify(dbxFiles).deleteV2("/folder/clutch-doc.pdf")
       verify(dbxFiles, never()).deleteV2("/folder")
     }
@@ -84,7 +84,7 @@ class DbxFilesSpec extends AnyFunSpec with MockitoSugar with Matchers {
       val dbxFiles: DbxUserFilesRequests = mock[DbxUserFilesRequests]
       when(dbxFiles.uploadBuilder("/.manifest")).thenReturn(uploadBuilder)
 
-      DbxFiles(mockDbxClient(dbxFiles)).uploadManifest(Manifest(List(FileState("filename", "md5sum"))))
+      DbxFiles(mockDbxClient(dbxFiles), executorService).uploadManifest(Manifest(List(FileState("filename", "md5sum"))))
       verify(uploadBuilder).withMode(WriteMode.OVERWRITE)
     }
   }
@@ -100,6 +100,10 @@ class DbxFilesSpec extends AnyFunSpec with MockitoSugar with Matchers {
     when(uploadBuilder.withMode(any())).thenReturn(uploadBuilder)
     uploadBuilder
   }
+
+  private def executorService: ThreadPoolExecutor = new ThreadPoolExecutor(
+    2, 2, Long.MaxValue, TimeUnit.HOURS, new SynchronousQueue[Runnable](), new ThreadPoolExecutor.CallerRunsPolicy()
+  )
 }
 
 object DbxFilesSpec {
