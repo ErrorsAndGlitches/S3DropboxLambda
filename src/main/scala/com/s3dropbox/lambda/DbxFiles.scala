@@ -1,7 +1,7 @@
 package com.s3dropbox.lambda
 
 import com.dropbox.core.v2.DbxClientV2
-import com.dropbox.core.v2.files.{ListFolderResult, Metadata, WriteMode}
+import com.dropbox.core.v2.files._
 import com.s3dropbox.lambda.DbxFiles._
 import com.s3dropbox.lambda.ZipFileIterator.ZipFileEntry
 import com.typesafe.scalalogging.LazyLogging
@@ -14,8 +14,7 @@ import org.springframework.stereotype.Component
 import java.io.{ByteArrayInputStream, File}
 import java.nio.charset.StandardCharsets
 import java.time.Duration
-import java.util.concurrent.{ExecutorService, Future, ThreadPoolExecutor, TimeUnit}
-import scala.collection.JavaConverters.asScalaBufferConverter
+import scala.collection.JavaConverters.{asScalaBufferConverter, seqAsJavaListConverter}
 import scala.collection.mutable
 
 /**
@@ -23,13 +22,21 @@ import scala.collection.mutable
  */
 @Component
 @Lazy
-case class DbxFiles(@Autowired var dbx: DbxClientV2, @Autowired var executor: ThreadPoolExecutor) extends LazyLogging {
+case class DbxFiles(@Autowired var dbx: DbxClientV2) extends LazyLogging {
   implicit val formats: Formats = JsonFormat
 
   def uploadPdfs(pdfEntries: List[ZipFileEntry]): Unit = {
-    pdfEntries
-      .map(updatePdf)
-      .foreach(_.get(UploadWaitTime.getSeconds, TimeUnit.SECONDS))
+    dbx.files.uploadSessionFinishBatch(
+      pdfEntries.map(entry => {
+        logger.info(s"Uploading PDF file to Dbx: ${entry.filename}")
+        val uploadResult = dbx.files.uploadSessionStart(true).uploadAndFinish(new ByteArrayInputStream(entry.data))
+        new UploadSessionFinishArg(
+          new UploadSessionCursor(uploadResult.getSessionId, entry.data.length),
+          CommitInfo.newBuilder(s"/${entry.filename}").withMode(WriteMode.OVERWRITE).build()
+        )
+      }).asJava
+    )
+    logger.info(s"Finished uploading PDF files to Dbx")
   }
 
   def deletePdfs(pdfFilenames: List[String]): Unit = {
@@ -45,19 +52,6 @@ case class DbxFiles(@Autowired var dbx: DbxClientV2, @Autowired var executor: Th
       .uploadAndFinish(new ByteArrayInputStream(
         Serialization.write(manifest).getBytes(StandardCharsets.UTF_8)
       ))
-  }
-
-  def shutdown(): Unit = executor.shutdown()
-
-  private def updatePdf(pdfEntry: ZipFileEntry): Future[Unit] = {
-    executor.submit(() => {
-      logger.info(s"Uploading PDF file to Dbx: ${pdfEntry.filename}")
-      dbx.files()
-        .uploadBuilder(s"/${pdfEntry.filename}")
-        .withMode(WriteMode.OVERWRITE)
-        .uploadAndFinish(new ByteArrayInputStream(pdfEntry.data))
-      logger.info(s"Finished uploading PDF file to Dbx: ${pdfEntry.filename}. Number active tasks: ${executor.getActiveCount}")
-    })
   }
 
   private def deletePdf(pdfFilename: String): Unit = {
@@ -83,7 +77,7 @@ case class DbxFiles(@Autowired var dbx: DbxClientV2, @Autowired var executor: Th
     val entries: mutable.ArrayBuffer[Metadata] = mutable.ArrayBuffer[Metadata]()
 
     var hasMore: Boolean = true
-    while(hasMore) {
+    while (hasMore) {
       val result: ListFolderResult = dbx.files().listFolder(folder)
       hasMore = result.getHasMore
       result.getEntries.asScala.foreach(entries.append(_))
